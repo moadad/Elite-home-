@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://moadad.github.io/Elite-home-/sitemap.xml
+Sitemap: https://moadad.github.io/Elite-home-/sitemap.txt
