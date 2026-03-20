@@ -1,0 +1,1858 @@
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+import { getFirestore, collection, doc, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, onSnapshot, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyD33DgOX1pygN5YtnwDS6i2qL9Npo5nQGk',
+  authDomain: 'joodkids-cc621.firebaseapp.com',
+  projectId: 'joodkids-cc621',
+  storageBucket: 'joodkids-cc621.firebasestorage.app',
+  messagingSenderId: '912175230101',
+  appId: '1:912175230101:web:b4f18fce627d430d4aff9c',
+};
+
+const ADMIN_UID = 'dZS7jUaB43aCL5Km3zr5V4LZuMr1';
+const CLOUDINARY_CLOUD_NAME = 'dthtzvypx';
+const CART_STORAGE_KEY = 'joodkids_cart_wholesale_piece_v3_fast';
+const PRODUCT_PAGE_SIZE = 24;
+const APP_SW_VERSION = 'joodkids-fast-secure-v15';
+const SITE_URL = 'https://moadad.github.io/jubilant/';
+const SITE_NAME_AR = 'جود كيدز';
+const SITE_NAME_EN = 'Jood Kids';
+
+const DEFAULT_PAYMENT_POLICY = `طرق الدفع
+1- نقدا من خلال أحد فروعنا
+2- تحويلات بنكية
+3- انستا بي
+4- محافظ الكترونيه (فودافون كاش أو اتصالات كاش أو أورنج كاش)
+5- نعتذر من عملائنا الكرام البيع بالاجل لاي سبب كان`;
+
+const DEFAULT_RETURN_POLICY = `يمكنك عمل طلب استرجاع او استبدال للمنتجات خلال 7 يوم .
+و فى حالات عيوب الصناعة 10 يوم من وقت وصول الطلب.
+
+عند إرجاع المنتج, تأكد من وجود جميع الملحقات الخاصة بالطلب بحالتها السليمة و ان المنتج فى عبوته الاصلية وبتغليفه الاصلي والملابس بحالتها كما وصلت للعميل غير مستعملة او ملبوسة او مغسولة.
+
+الاستبدال والاسترجاع علي الملابس الخارجية فقط والتي بدون خصم .`;
+
+const DEFAULT_SHIPPING_POLICY = `تنويه عند رجوع البضاعه بدون تبليغنا قبل الاسترجاع ب 3 ايام على الاقل سوف يتم خصم قيمه الشحن ذهاب و اياب من العربون المدفوع لدينا.
+
+لديك 7 يوم من تاريخ إستلامك أي سلعة لتقدم طلب ارجاعها.`;
+
+const DEFAULT_TERMS_POLICY = `البيع بالجملة فقط.
+الأسعار قابلة للتحديث وفق السياسة التجارية.
+تأكيد الطلب مرتبط بتوافر المنتج وقت المراجعة.
+يحق للإدارة تعديل الواجهة والمنتجات والسياسات من لوحة التحكم.`;
+
+const DEFAULT_PAYMENT_METHODS = [
+  { key: 'vodafone', label: 'فودافون كاش', icon: 'fa-solid fa-wallet' },
+  { key: 'etisalat', label: 'اتصالات كاش', icon: 'fa-solid fa-wallet' },
+  { key: 'orange', label: 'أورنج كاش', icon: 'fa-solid fa-wallet' },
+  { key: 'instapay', label: 'انستا بي', icon: 'fa-solid fa-building-columns' },
+  { key: 'cash', label: 'كاش', icon: 'fa-solid fa-money-bill-wave' },
+  { key: 'shipping', label: 'بوليصة شحن', icon: 'fa-solid fa-file-lines' },
+];
+
+const DEFAULT_STOREFRONT = {
+  companyName: 'Jood Kids',
+  tagline: 'جملة الأطفال',
+  heroTitle: 'التشكيلة الجديدة',
+  heroSubtitle: 'منتجات الجملة مرتبة حسب التصنيف والموسم.',
+  heroBadge: 'جملة فقط',
+  logoUrl: '',
+  accentColor: '#7c3aed',
+  accentColor2: '#2563eb',
+  featuredLimit: 8,
+  installEnabled: true,
+  floatingWhatsappEnabled: true,
+};
+
+const DEFAULT_COMPANY = {
+  companyName: 'Jood Kids',
+  tagline: 'جملة الأطفال',
+  phone1: '',
+  phone2: '',
+  whatsapp: '',
+  address: '',
+  instagram: '',
+  facebook: '',
+  telegram: '',
+  factoryMap: '',
+  shopMap: '',
+  cloudinaryPreset: 'Joodkids',
+  about: '',
+};
+
+const DEFAULT_STORE_SETTINGS = {
+  returnPolicy: DEFAULT_RETURN_POLICY,
+  shippingPolicy: DEFAULT_SHIPPING_POLICY,
+  termsPolicy: DEFAULT_TERMS_POLICY,
+  seasons: ['صيفي', 'شتوي', 'خريفي'],
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const state = {
+  products: [],
+  orders: [],
+  categories: [],
+  company: { ...DEFAULT_COMPANY },
+  storefront: { ...DEFAULT_STOREFRONT },
+  storeSettings: { ...DEFAULT_STORE_SETTINGS },
+  payments: { policyText: DEFAULT_PAYMENT_POLICY, methods: [...DEFAULT_PAYMENT_METHODS] },
+  cart: loadLocalJSON(CART_STORAGE_KEY, []),
+  authUser: null,
+  isAdmin: false,
+  editingProductId: null,
+  productImagesDraft: [],
+  featuredOnlyAdmin: false,
+  gallery: { urls: [], index: 0 },
+  filter: { search: '', category: 'all', season: 'all', offersOnly: false, sort: 'featured' },
+  deferredInstallPrompt: null,
+  assetTargetInputId: '',
+  filteredProducts: [],
+  renderedCount: PRODUCT_PAGE_SIZE,
+  renderScheduled: false,
+};
+
+const el = {
+  siteContent: id('siteContent'),
+  overlay: id('overlay'),
+  toast: id('toast'),
+  menuToggle: id('menuToggle'),
+  closeMenu: id('closeMenu'),
+  menuDrawer: id('menuDrawer'),
+  cartDrawer: id('cartDrawer'),
+  adminDrawer: id('adminDrawer'),
+  brandTrigger: id('brandTrigger'),
+  brandName: id('brandName'),
+  brandTagline: id('brandTagline'),
+  footerBrandName: id('footerBrandName'),
+  brandLogoImage: id('brandLogoImage'),
+  brandLogoMark: id('brandLogoMark'),
+  installBtn: id('installBtn'),
+  menuInstallBtn: id('menuInstallBtn'),
+  contactBtn: id('contactBtn'),
+  cartToggle: id('cartToggle'),
+  cartCount: id('cartCount'),
+  heroTitle: id('heroTitle'),
+  heroSubtitle: id('heroSubtitle'),
+  heroBadge: id('heroBadge'),
+  productsCounter: id('productsCounter'),
+  categoriesCounter: id('categoriesCounter'),
+  seasonsCounter: id('seasonsCounter'),
+  companyAbout: id('companyAbout'),
+  searchInput: id('searchInput'),
+  sortFilter: id('sortFilter'),
+  clearFiltersBtn: id('clearFiltersBtn'),
+  visibleCount: id('visibleCount'),
+  productsGrid: id('productsGrid'),
+  seoCatalog: id('seoCatalog'),
+  loadMoreWrap: id('loadMoreWrap'),
+  loadMoreBtn: id('loadMoreBtn'),
+  emptyState: id('emptyState'),
+  menuCategoryList: id('menuCategoryList'),
+  menuSeasonList: id('menuSeasonList'),
+  menuOffersBtn: id('menuOffersBtn'),
+  menuContactBtn: id('menuContactBtn'),
+  menuNoticeBtn: id('menuNoticeBtn'),
+  menuPaymentBtn: id('menuPaymentBtn'),
+  menuReturnBtn: id('menuReturnBtn'),
+  menuTermsBtn: id('menuTermsBtn'),
+  paymentIcons: id('paymentIcons'),
+  instagramLink: id('instagramLink'),
+  facebookLink: id('facebookLink'),
+  telegramLink: id('telegramLink'),
+  whatsappLink: id('whatsappLink'),
+  modalInstagramLink: id('modalInstagramLink'),
+  modalFacebookLink: id('modalFacebookLink'),
+  modalTelegramLink: id('modalTelegramLink'),
+  modalWhatsappLink: id('modalWhatsappLink'),
+  modalFactoryMapLink: id('modalFactoryMapLink'),
+  modalShopMapLink: id('modalShopMapLink'),
+  floatingWhatsApp: id('floatingWhatsApp'),
+  closeCart: id('closeCart'),
+  cartItems: id('cartItems'),
+  cartItemsCount: id('cartItemsCount'),
+  cartTotal: id('cartTotal'),
+  checkoutBtn: id('checkoutBtn'),
+  closeAdmin: id('closeAdmin'),
+  adminLoginSection: id('adminLoginSection'),
+  adminContent: id('adminContent'),
+  adminEmail: id('adminEmail'),
+  adminPassword: id('adminPassword'),
+  adminLoginBtn: id('adminLoginBtn'),
+  adminLogoutBtn: id('adminLogoutBtn'),
+  authStatus: id('authStatus'),
+  adminProductsCount: id('adminProductsCount'),
+  adminOrdersCount: id('adminOrdersCount'),
+  adminCategoriesCount: id('adminCategoriesCount'),
+  adminOrdersTotal: id('adminOrdersTotal'),
+  adminProductsList: id('adminProductsList'),
+  adminOrdersList: id('adminOrdersList'),
+  adminTabs: [...document.querySelectorAll('.tab-btn')],
+  tabsPanels: [...document.querySelectorAll('.tab-panel')],
+  saveAppearanceBtn: id('saveAppearanceBtn'),
+  companyNameInput: id('companyNameInput'),
+  companyTaglineInput: id('companyTaglineInput'),
+  heroTitleInput: id('heroTitleInput'),
+  heroSubtitleInput: id('heroSubtitleInput'),
+  heroBadgeInput: id('heroBadgeInput'),
+  logoUrlInput: id('logoUrlInput'),
+  accentColorInput: id('accentColorInput'),
+  accentColor2Input: id('accentColor2Input'),
+  featuredLimitInput: id('featuredLimitInput'),
+  installEnabledInput: id('installEnabledInput'),
+  floatingWhatsappInput: id('floatingWhatsappInput'),
+  saveCompanyBtn: id('saveCompanyBtn'),
+  companyPhoneInput: id('companyPhoneInput'),
+  companyPhone2Input: id('companyPhone2Input'),
+  companyWhatsappInput: id('companyWhatsappInput'),
+  companyAddressInput: id('companyAddressInput'),
+  companyInstagramInput: id('companyInstagramInput'),
+  companyFacebookInput: id('companyFacebookInput'),
+  companyTelegramInput: id('companyTelegramInput'),
+  factoryMapInput: id('factoryMapInput'),
+  shopMapInput: id('shopMapInput'),
+  cloudinaryPresetInput: id('cloudinaryPresetInput'),
+  companyAboutInput: id('companyAboutInput'),
+  paymentPolicyInput: id('paymentPolicyInput'),
+  returnPolicyInput: id('returnPolicyInput'),
+  shippingPolicyInput: id('shippingPolicyInput'),
+  termsPolicyInput: id('termsPolicyInput'),
+  savePoliciesBtn: id('savePoliciesBtn'),
+  seasonsInput: id('seasonsInput'),
+  saveSeasonsBtn: id('saveSeasonsBtn'),
+  categoryManagerList: id('categoryManagerList'),
+  productFormTitle: id('productFormTitle'),
+  productNameInput: id('productNameInput'),
+  productModelInput: id('productModelInput'),
+  productPriceInput: id('productPriceInput'),
+  productDiscountInput: id('productDiscountInput'),
+  productSeasonInput: id('productSeasonInput'),
+  productSizesInput: id('productSizesInput'),
+  productMinQtyInput: id('productMinQtyInput'),
+  productBadgeInput: id('productBadgeInput'),
+  productPinnedInput: id('productPinnedInput'),
+  productVisibleInput: id('productVisibleInput'),
+  productDescriptionInput: id('productDescriptionInput'),
+  productImageUrlsInput: id('productImageUrlsInput'),
+  productImagesInput: id('productImagesInput'),
+  saveProductBtn: id('saveProductBtn'),
+  resetProductBtn: id('resetProductBtn'),
+  uploadStatus: id('uploadStatus'),
+  productImagesPreview: id('productImagesPreview'),
+  togglePinnedFilterBtn: id('togglePinnedFilterBtn'),
+  exportOrdersBtn: id('exportOrdersBtn'),
+  exportProductsBtn: id('exportProductsBtn'),
+  excelImportInput: id('excelImportInput'),
+  deleteProductsBtn: id('deleteProductsBtn'),
+  deleteOrdersBtn: id('deleteOrdersBtn'),
+  deleteAllDataBtn: id('deleteAllDataBtn'),
+  contactModal: id('contactModal'),
+  policyModal: id('policyModal'),
+  policyModalTitle: id('policyModalTitle'),
+  policyModalContent: id('policyModalContent'),
+  imageModal: id('imageModal'),
+  modalImage: id('modalImage'),
+  galleryPrev: id('galleryPrev'),
+  galleryNext: id('galleryNext'),
+  galleryThumbs: id('galleryThumbs'),
+  checkoutModal: id('checkoutModal'),
+  customerNameInput: id('customerNameInput'),
+  customerPhoneInput: id('customerPhoneInput'),
+  customerCityInput: id('customerCityInput'),
+  customerAddressInput: id('customerAddressInput'),
+  paymentMethodInput: id('paymentMethodInput'),
+  shippingMethodInput: id('shippingMethodInput'),
+  customerNotesInput: id('customerNotesInput'),
+  submitOrderBtn: id('submitOrderBtn'),
+  singleAssetUploader: id('singleAssetUploader'),
+  uploadTriggers: [...document.querySelectorAll('.upload-trigger')],
+};
+
+ensureButtonTypes();
+
+function ensureButtonTypes() {
+  document.querySelectorAll('button:not([type])').forEach((button) => {
+    button.type = 'button';
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => queueMicrotask(boot), { once: true });
+} else {
+  queueMicrotask(boot);
+}
+
+function boot() {
+  setPersistence(auth, browserSessionPersistence).catch(console.error);
+  bindUI();
+  initTabs();
+  subscribeData();
+  renderCart();
+  applyTheme();
+  renderStorefront();
+  onAuthStateChanged(auth, handleAuthChange);
+  setupInstallPrompt();
+  registerServiceWorker();
+}
+
+function bindUI() {
+  const debouncedSearch = debounce(() => { state.filter.search = el.searchInput.value.trim().toLowerCase(); resetRenderedProducts(); applyFilters(); }, 120);
+  el.menuToggle.addEventListener('click', () => openDrawer('menu'));
+  el.closeMenu.addEventListener('click', closeDrawers);
+  el.brandTrigger.addEventListener('click', () => openDrawer('admin'));
+  el.cartToggle.addEventListener('click', () => openDrawer('cart'));
+  el.closeCart.addEventListener('click', closeDrawers);
+  el.closeAdmin.addEventListener('click', closeDrawers);
+  // Important: do not stop events on the admin drawer during capture phase.
+  // Doing that prevents inner buttons like login, save, tabs and delete from receiving clicks.
+  ['click', 'pointerup', 'touchend'].forEach((type) => {
+    el.adminDrawer.addEventListener(type, (event) => {
+      if (event.target === el.adminDrawer) event.stopPropagation();
+    });
+  });
+  el.overlay.addEventListener('click', closeDrawers);
+  el.contactBtn.addEventListener('click', () => openModal('contactModal'));
+  el.menuContactBtn.addEventListener('click', () => { closeDrawers(); openModal('contactModal'); });
+  el.menuNoticeBtn.addEventListener('click', () => openPolicy('التنويه', state.storeSettings.shippingPolicy || DEFAULT_SHIPPING_POLICY));
+  el.menuPaymentBtn.addEventListener('click', () => openPolicy('سياسة الدفع', state.payments.policyText || DEFAULT_PAYMENT_POLICY));
+  el.menuReturnBtn.addEventListener('click', () => openPolicy('سياسة الاستبدال والاسترجاع', state.storeSettings.returnPolicy || DEFAULT_RETURN_POLICY));
+  el.menuTermsBtn.addEventListener('click', () => openPolicy('الشروط', state.storeSettings.termsPolicy || DEFAULT_TERMS_POLICY));
+  el.menuOffersBtn.addEventListener('click', () => {
+    state.filter.offersOnly = !state.filter.offersOnly;
+    resetRenderedProducts();
+    applyFilters();
+    closeDrawers();
+    document.getElementById('productsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  el.installBtn.addEventListener('click', installPwa);
+  el.menuInstallBtn.addEventListener('click', installPwa);
+  el.searchInput.addEventListener('input', debouncedSearch);
+  el.sortFilter.addEventListener('change', () => { state.filter.sort = el.sortFilter.value; resetRenderedProducts(); applyFilters(); });
+  el.clearFiltersBtn.addEventListener('click', clearFilters);
+  el.loadMoreBtn.addEventListener('click', renderMoreProducts);
+  el.floatingWhatsApp.addEventListener('click', openWhatsAppDirect);
+  bindExternalLinkButton(el.instagramLink, () => state.company.instagram);
+  bindExternalLinkButton(el.facebookLink, () => state.company.facebook);
+  bindExternalLinkButton(el.telegramLink, () => state.company.telegram);
+  bindExternalLinkButton(el.whatsappLink, () => buildWhatsAppLink());
+  bindExternalLinkButton(el.modalInstagramLink, () => state.company.instagram);
+  bindExternalLinkButton(el.modalFacebookLink, () => state.company.facebook);
+  bindExternalLinkButton(el.modalTelegramLink, () => state.company.telegram);
+  bindExternalLinkButton(el.modalWhatsappLink, () => buildWhatsAppLink());
+  bindExternalLinkButton(el.modalFactoryMapLink, () => state.company.factoryMap);
+  bindExternalLinkButton(el.modalShopMapLink, () => state.company.shopMap);
+  el.checkoutBtn.addEventListener('click', () => {
+    if (!state.cart.length) return showToast('السلة فارغة');
+    openModal('checkoutModal');
+  });
+  el.submitOrderBtn.addEventListener('click', submitOrder);
+  ['click', 'pointerup', 'touchend'].forEach((eventName) => {
+    el.adminLoginBtn.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      adminLogin();
+    }, { passive: false });
+    el.adminLogoutBtn.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      adminLogout();
+    }, { passive: false });
+  });
+  [el.adminEmail, el.adminPassword].forEach((input) => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        adminLogin();
+      }
+    });
+  });
+  el.saveAppearanceBtn.addEventListener('click', saveAppearance);
+  el.saveCompanyBtn.addEventListener('click', saveCompanyData);
+  el.savePoliciesBtn.addEventListener('click', savePolicies);
+  el.saveSeasonsBtn.addEventListener('click', saveSeasons);
+  el.saveProductBtn.addEventListener('click', saveProduct);
+  el.resetProductBtn.addEventListener('click', resetProductForm);
+  el.productImageUrlsInput.addEventListener('input', syncDraftImagesFromTextarea);
+  el.productImagesInput.addEventListener('change', handleProductFileUpload);
+  el.exportProductsBtn.addEventListener('click', exportProductsExcel);
+  el.exportOrdersBtn.addEventListener('click', exportOrdersExcel);
+  el.excelImportInput.addEventListener('change', importProductsExcel);
+  el.deleteProductsBtn.addEventListener('click', () => deleteCollectionDocs('products', 'اكتب حذف المنتجات'));
+  el.deleteOrdersBtn.addEventListener('click', () => deleteCollectionDocs('orders', 'اكتب حذف الطلبات'));
+  el.deleteAllDataBtn.addEventListener('click', deleteAllData);
+  el.togglePinnedFilterBtn.addEventListener('click', togglePinnedAdminFilter);
+  el.galleryPrev.addEventListener('click', () => changeGallery(-1));
+  el.galleryNext.addEventListener('click', () => changeGallery(1));
+  el.singleAssetUploader.addEventListener('change', handleSingleAssetUpload);
+  el.uploadTriggers.forEach((btn) => btn.addEventListener('click', () => {
+    if (!guardAdmin()) return;
+    state.assetTargetInputId = btn.dataset.targetInput;
+    el.singleAssetUploader.click();
+  }));
+  document.querySelectorAll('.modal-close').forEach((btn) => {
+    ['click', 'pointerup', 'touchend'].forEach((eventName) => {
+      btn.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeModal(e.currentTarget.dataset.close);
+      }, { passive: false });
+    });
+  });
+  [el.contactModal, el.policyModal, el.imageModal, el.checkoutModal].forEach((modal) => {
+    ['click', 'pointerup', 'touchend'].forEach((eventName) => {
+      modal.addEventListener(eventName, (e) => {
+        if (e.target === modal) {
+          e.preventDefault();
+          closeModal(modal.id);
+        }
+      }, { passive: false });
+    });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.querySelector('.modal.show')) {
+      const activeModal = document.querySelector('.modal.show');
+      if (activeModal?.id) closeModal(activeModal.id);
+    }
+  });
+}
+
+function initTabs() {
+  el.adminTabs.forEach((btn) => btn.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    el.adminTabs.forEach((item) => item.classList.toggle('active', item === btn));
+    el.tabsPanels.forEach((panel) => panel.classList.toggle('active', panel.id === btn.dataset.tab));
+  }));
+}
+
+function subscribeData() {
+  onSnapshot(collection(db, 'products'), (snapshot) => {
+    state.products = snapshot.docs.map((entry) => enrichProduct({ id: entry.id, ...entry.data() }));
+    state.products.sort((a, b) => toMillis(b.createdAt || b.updatedAt) - toMillis(a.createdAt || a.updatedAt));
+    resetRenderedProducts();
+    scheduleRenderEverything();
+  }, console.error);
+  onSnapshot(collection(db, 'categories'), (snapshot) => {
+    state.categories = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+    scheduleRenderEverything();
+  }, console.error);
+  onSnapshot(doc(db, 'company', 'main'), (entry) => {
+    state.company = { ...DEFAULT_COMPANY, ...(entry.exists() ? entry.data() : {}) };
+    scheduleRenderEverything();
+  }, console.error);
+  onSnapshot(doc(db, 'settings', 'storefront'), (entry) => {
+    state.storefront = { ...DEFAULT_STOREFRONT, ...(entry.exists() ? entry.data() : {}) };
+    applyTheme();
+    scheduleRenderEverything();
+  }, console.error);
+  onSnapshot(doc(db, 'settings', 'store'), (entry) => {
+    state.storeSettings = { ...DEFAULT_STORE_SETTINGS, ...(entry.exists() ? entry.data() : {}) };
+    scheduleRenderEverything();
+  }, console.error);
+  onSnapshot(doc(db, 'payments', 'default'), (entry) => {
+    state.payments = { policyText: DEFAULT_PAYMENT_POLICY, methods: [...DEFAULT_PAYMENT_METHODS], ...(entry.exists() ? entry.data() : {}) };
+    scheduleRenderEverything();
+  }, console.error);
+  onSnapshot(doc(db, 'shipping', 'default'), (entry) => {
+    const data = entry.exists() ? entry.data() : {};
+    state.storeSettings.shippingPolicy = data.policyText || state.storeSettings.shippingPolicy || DEFAULT_SHIPPING_POLICY;
+    scheduleRenderEverything();
+  }, console.error);
+}
+
+let unsubscribeOrders = null;
+
+function scheduleRenderEverything() {
+  if (state.renderScheduled) return;
+  state.renderScheduled = true;
+  requestAnimationFrame(() => {
+    state.renderScheduled = false;
+    renderEverything();
+  });
+}
+
+function subscribeOrdersIfAdmin() {
+  if (!state.isAdmin) {
+    if (unsubscribeOrders) {
+      unsubscribeOrders();
+      unsubscribeOrders = null;
+    }
+    state.orders = [];
+    scheduleRenderEverything();
+    return;
+  }
+  if (unsubscribeOrders) return;
+  unsubscribeOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+    state.orders = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
+    state.orders.sort((a, b) => toMillis(b.createdAt || b.updatedAt) - toMillis(a.createdAt || a.updatedAt));
+    scheduleRenderEverything();
+  }, (error) => {
+    console.error(error);
+    state.orders = [];
+    scheduleRenderEverything();
+    showToast('لا يمكن عرض الطلبات إلا بعد دخول الأدمن');
+  });
+}
+
+function renderEverything() {
+  renderStorefront();
+  rebuildSeasonOptions();
+  renderCategoryManager();
+  renderAdminForms();
+  renderAdminProducts();
+  renderAdminOrders();
+  applyFilters();
+  renderCart();
+}
+
+function renderStorefront() {
+  const companyName = state.company.companyName || state.storefront.companyName || DEFAULT_COMPANY.companyName;
+  const tagline = state.company.tagline || state.storefront.tagline || DEFAULT_COMPANY.tagline;
+  el.brandName.textContent = companyName;
+  el.brandTagline.textContent = tagline;
+  el.footerBrandName.textContent = companyName;
+  el.heroTitle.textContent = state.storefront.heroTitle || DEFAULT_STOREFRONT.heroTitle;
+  el.heroSubtitle.textContent = state.storefront.heroSubtitle || DEFAULT_STOREFRONT.heroSubtitle;
+  el.heroBadge.textContent = state.storefront.heroBadge || DEFAULT_STOREFRONT.heroBadge;
+  el.companyAbout.textContent = state.company.about || '';
+  const logoUrl = state.storefront.logoUrl || '';
+  if (logoUrl) {
+    el.brandLogoImage.src = logoUrl;
+    el.brandLogoImage.classList.remove('hidden');
+    el.brandLogoMark.classList.add('hidden');
+  } else {
+    el.brandLogoImage.classList.add('hidden');
+    el.brandLogoMark.classList.remove('hidden');
+    el.brandLogoMark.textContent = initials(companyName);
+  }
+  setActionLink(el.instagramLink, '');
+  setActionLink(el.facebookLink, '');
+  setActionLink(el.telegramLink, '');
+  setActionLink(el.whatsappLink, '');
+  setActionLink(el.modalInstagramLink, state.company.instagram);
+  setActionLink(el.modalFacebookLink, state.company.facebook);
+  setActionLink(el.modalTelegramLink, state.company.telegram);
+  setActionLink(el.modalWhatsappLink, buildWhatsAppLink());
+  setActionLink(el.modalFactoryMapLink, state.company.factoryMap);
+  setActionLink(el.modalShopMapLink, state.company.shopMap);
+  const visibleProducts = getVisibleProducts();
+  el.productsCounter.textContent = visibleProducts.length.toLocaleString('en-US');
+  el.categoriesCounter.textContent = getCodeCategoryKeys().length.toLocaleString('en-US');
+  el.seasonsCounter.textContent = getSeasonOptions().length.toLocaleString('en-US');
+  el.floatingWhatsApp.classList.toggle('hidden', !state.storefront.floatingWhatsappEnabled || !normalizeWhatsAppNumber(state.company.whatsapp || state.company.phone1));
+  const showInstall = state.storefront.installEnabled && Boolean(state.deferredInstallPrompt);
+  el.installBtn.classList.toggle('hidden', !showInstall);
+  el.menuInstallBtn.classList.toggle('hidden', !showInstall);
+  renderPaymentIcons();
+  syncSiteMeta();
+  syncDynamicStructuredData();
+}
+
+function renderPaymentIcons() {
+  const methods = Array.isArray(state.payments.methods) && state.payments.methods.length ? state.payments.methods : DEFAULT_PAYMENT_METHODS;
+  el.paymentIcons.innerHTML = '';
+  methods.forEach((method) => {
+    const item = document.createElement('div');
+    item.className = `pay-icon ${method.key}`;
+    item.innerHTML = `<i class="${method.icon || 'fa-solid fa-wallet'}"></i><span>${escapeHTML(method.label || '')}</span>`;
+    el.paymentIcons.appendChild(item);
+  });
+}
+
+function renderMenu() {
+  const selectedCat = state.filter.category;
+  const selectedSeason = state.filter.season;
+  el.menuCategoryList.innerHTML = '';
+  el.menuCategoryList.appendChild(makeFilterChip('الكل', selectedCat === 'all', () => { state.filter.category = 'all'; resetRenderedProducts(); applyFilters(); }));
+  getCodeCategoryKeys().forEach((key) => {
+    el.menuCategoryList.appendChild(makeFilterChip(getCodeCategoryLabel(key), selectedCat === key, () => { state.filter.category = key; resetRenderedProducts(); applyFilters(); closeDrawers(); }));
+  });
+  el.menuSeasonList.innerHTML = '';
+  el.menuSeasonList.appendChild(makeFilterChip('الكل', selectedSeason === 'all', () => { state.filter.season = 'all'; resetRenderedProducts(); applyFilters(); }));
+  getSeasonOptions().forEach((season) => {
+    el.menuSeasonList.appendChild(makeFilterChip(season, selectedSeason === season, () => { state.filter.season = season; resetRenderedProducts(); applyFilters(); closeDrawers(); }));
+  });
+  el.menuOffersBtn.classList.toggle('active', state.filter.offersOnly);
+}
+
+function makeFilterChip(label, active, onClick) {
+  const btn = document.createElement('button');
+  btn.className = `filter-chip ${active ? 'active' : ''}`;
+  btn.textContent = label;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function applyFilters() {
+  const search = state.filter.search;
+  let items = getVisibleProducts().filter((product) => {
+    const haystack = `${product._searchText || ''} ${getCodeCategoryLabel(product.codeCategory)} ${product.season || ''}`.toLowerCase();
+    if (search && !haystack.includes(search)) return false;
+    if (state.filter.category !== 'all' && String(product.codeCategory) !== state.filter.category) return false;
+    if (state.filter.season !== 'all' && String(product.season || '') !== state.filter.season) return false;
+    if (state.filter.offersOnly && !hasDiscount(product)) return false;
+    return true;
+  });
+  items.sort((a, b) => {
+    const sort = state.filter.sort;
+    if (sort === 'priceAsc') return getDisplayPrice(a) - getDisplayPrice(b);
+    if (sort === 'priceDesc') return getDisplayPrice(b) - getDisplayPrice(a);
+    if (sort === 'offers') {
+      const offers = Number(hasDiscount(b)) - Number(hasDiscount(a));
+      if (offers) return offers;
+      return toMillis(b.createdAt || b.updatedAt) - toMillis(a.createdAt || a.updatedAt);
+    }
+    if (sort === 'modelAsc') return String(a.model || '').localeCompare(String(b.model || ''), 'en', { numeric: true });
+    if (sort === 'newest') return toMillis(b.createdAt || b.updatedAt) - toMillis(a.createdAt || a.updatedAt);
+    const pinDelta = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
+    if (pinDelta) return pinDelta;
+    return toMillis(b.createdAt || b.updatedAt) - toMillis(a.createdAt || a.updatedAt);
+  });
+  state.filteredProducts = items;
+  renderProducts();
+  renderMenu();
+  renderSeoCatalog();
+  syncDynamicStructuredData();
+  syncSiteMeta();
+}
+
+function renderProducts() {
+  const items = state.filteredProducts || [];
+  const renderedItems = items.slice(0, state.renderedCount);
+  el.productsGrid.innerHTML = '';
+  el.visibleCount.textContent = items.length > renderedItems.length ? `${renderedItems.length.toLocaleString('en-US')} من ${items.length.toLocaleString('en-US')} منتج` : `${items.length.toLocaleString('en-US')} منتج`;
+  el.emptyState.classList.toggle('hidden', items.length > 0);
+  el.loadMoreWrap.classList.toggle('hidden', renderedItems.length >= items.length || items.length === 0);
+  const fragment = document.createDocumentFragment();
+  renderedItems.forEach((product, index) => {
+    const card = document.createElement('article');
+    card.className = 'product-card';
+    const urls = normalizeImageUrls(product.imageUrls);
+    const displayPrice = getDisplayPrice(product);
+    const offer = hasDiscount(product);
+    const originalUrl = urls[0] || placeholderImage(product.name || product.model || 'Jood Kids');
+    const thumbUrl = getProductThumbUrl(originalUrl);
+    const productAlt = buildProductAlt(product);
+    const productLabel = product.name || `موديل ${product.model || ''}`.trim() || 'منتج';
+    card.id = getProductAnchorId(product);
+    card.setAttribute('data-product-id', String(product.id || ''));
+    card.setAttribute('data-model', String(product.model || ''));
+    card.innerHTML = `
+      <div class="product-media">
+        <img src="${escapeAttr(thumbUrl)}" alt="${escapeAttr(productAlt)}" title="${escapeAttr(productAlt)}" loading="lazy" decoding="async" fetchpriority="${index < 4 ? 'high' : 'low'}" />
+        ${offer ? `<span class="sale-badge">خصم ${Math.round(toNumber(product.discountPercent))}%</span>` : ''}
+        ${product.pinned ? '<span class="pin-badge"><i class="fa-solid fa-thumbtack"></i>مثبت</span>' : ''}
+        ${urls.length > 1 ? `<span class="gallery-count">${urls.length} صور</span>` : ''}
+      </div>
+      <div class="product-body">
+        <div class="badges-row"></div>
+        <h3 class="product-title"></h3>
+        <div class="product-sub"></div>
+        <p class="product-desc"></p>
+        <div class="price-stack">
+          <div class="price-main">
+            <small>سعر السيري</small>
+            <strong>${formatCurrency(displayPrice)}</strong>
+            ${offer ? `<del>${formatCurrency(getSeriesBasePrice(product))}</del>` : ''}
+          </div>
+          <div class="muted">سعر القطعة ${formatCurrency(getPiecePrice(product))} • ${escapeHTML(getSeriesLabel(product))}</div>
+        </div>
+        <div class="card-actions">
+          <button class="ghost-btn zoom-btn" aria-label="تكبير صور ${escapeAttr(productLabel)}"><i class="fa-solid fa-expand"></i><span>تكبير</span></button>
+          <button class="primary-btn add-btn" aria-label="أضف ${escapeAttr(productLabel)} إلى السلة"><i class="fa-solid fa-cart-plus"></i><span>أضف سيري</span></button>
+        </div>
+      </div>`;
+    card.querySelector('.product-title').textContent = product.name || 'بدون اسم';
+    card.querySelector('.product-sub').innerHTML = `<span>موديل ${escapeHTML(product.model || '-')}</span><span>${escapeHTML(product.sizes || '')}</span><span>${escapeHTML(getSeriesLabel(product))}</span>`;
+    card.querySelector('.product-desc').textContent = product.description || '';
+    const badgesRow = card.querySelector('.badges-row');
+    [getCodeCategoryLabel(product.codeCategory), product.season, product.badgeText, hasDiscount(product) ? 'عرض' : ''].filter(Boolean).forEach((text) => badgesRow.appendChild(makeBadge(text)));
+    const open = () => openGallery(urls.length ? urls : [placeholderImage(product.name || product.model || 'Jood Kids')], 0);
+    card.querySelector('.product-media').addEventListener('click', open);
+    card.querySelector('.zoom-btn').addEventListener('click', open);
+    card.querySelector('.add-btn').addEventListener('click', () => addToCart(product.id));
+    fragment.appendChild(card);
+  });
+  el.productsGrid.appendChild(fragment);
+}
+
+function getBrandDisplayName() {
+  return state.company.companyName || state.storefront.companyName || DEFAULT_COMPANY.companyName || SITE_NAME_AR;
+}
+
+function getCanonicalUrl() {
+  return SITE_URL;
+}
+
+function slugifyArabic(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120);
+}
+
+function getProductAnchorId(product) {
+  const base = product?.model ? `product-${slugifyArabic(product.model)}` : `product-${slugifyArabic(product?.id || product?.name || 'item')}`;
+  return base || 'product-item';
+}
+
+function buildProductAlt(product) {
+  const brand = getBrandDisplayName();
+  const bits = [
+    product?.name || '',
+    product?.model ? `موديل ${product.model}` : '',
+    getCodeCategoryLabel(product?.codeCategory) || '',
+    product?.season || '',
+    'ملابس أطفال',
+    brand,
+  ].filter(Boolean);
+  return bits.join(' | ');
+}
+
+function buildProductDescription(product) {
+  const brand = getBrandDisplayName();
+  const parts = [
+    product?.description || '',
+    product?.sizes ? `المقاسات: ${product.sizes}` : '',
+    product?.season ? `الموسم: ${product.season}` : '',
+    getCodeCategoryLabel(product?.codeCategory) ? `التصنيف: ${getCodeCategoryLabel(product.codeCategory)}` : '',
+    `المتجر: ${brand}`
+  ].filter(Boolean);
+  return parts.join(' • ').slice(0, 500);
+}
+
+function syncMetaTag(selector, attr, value) {
+  const node = document.querySelector(selector);
+  if (node && value) node.setAttribute(attr, value);
+}
+
+function syncSiteMeta() {
+  const brand = getBrandDisplayName();
+  const visibleCount = getVisibleProducts().length;
+  const title = `${brand} | ملابس أطفال وحديثي الولادة`;
+  const description = `${brand} لملابس الأطفال وحديثي الولادة. ${visibleCount.toLocaleString('en-US')} موديل متاح مع صور المنتجات والتواصل والطلب.`;
+  document.title = title;
+  syncMetaTag('meta[name="description"]', 'content', description);
+  syncMetaTag('meta[property="og:title"]', 'content', title);
+  syncMetaTag('meta[property="og:description"]', 'content', description);
+  syncMetaTag('meta[name="twitter:title"]', 'content', title);
+  syncMetaTag('meta[name="twitter:description"]', 'content', description);
+  syncMetaTag('link[rel="canonical"]', 'href', getCanonicalUrl());
+  syncMetaTag('meta[property="og:url"]', 'content', getCanonicalUrl());
+  syncMetaTag('meta[property="og:site_name"]', 'content', brand);
+}
+
+function renderSeoCatalog() {
+  if (!el.seoCatalog) return;
+  const visibleProducts = getVisibleProducts();
+  const topProducts = visibleProducts.slice(0, 300);
+  const brand = getBrandDisplayName();
+  const lines = [
+    `<h2>${escapeHTML(brand)} - فهرس موديلات ملابس الأطفال وحديثي الولادة</h2>`,
+    `<p>${escapeHTML(brand)} يقدم ${visibleProducts.length.toLocaleString('en-US')} موديل من ملابس الأطفال والبيبي وحديثي الولادة.</p>`
+  ];
+  topProducts.forEach((product) => {
+    const title = product.name || `موديل ${product.model || ''}`.trim();
+    lines.push(`<article><h3>${escapeHTML(title)}</h3><p>${escapeHTML(buildProductDescription(product))}</p></article>`);
+  });
+  el.seoCatalog.innerHTML = lines.join('');
+}
+
+function getPublicImageUrl(product) {
+  const urls = normalizeImageUrls(product?.imageUrls);
+  return urls[0] || 'https://moadad.github.io/jubilant/assets/icon-512.png';
+}
+
+function getSameAsLinks() {
+  return [state.company.instagram, state.company.facebook, state.company.telegram].filter((url) => /^https?:\/\//i.test(String(url || '').trim()));
+}
+
+function syncDynamicStructuredData() {
+  const script = document.getElementById('dynamicStructuredData');
+  if (!script) return;
+  const brand = getBrandDisplayName();
+  const visibleProducts = getVisibleProducts();
+  const topProducts = visibleProducts.slice(0, 60);
+  const graph = [
+    {
+      '@type': 'Store',
+      '@id': `${SITE_URL}#store`,
+      name: brand,
+      url: SITE_URL,
+      image: state.storefront.logoUrl || 'https://moadad.github.io/jubilant/assets/icon-512.png',
+      description: `${brand} لملابس الأطفال وحديثي الولادة`,
+      sameAs: getSameAsLinks(),
+      telephone: state.company.phone1 || undefined
+    },
+    {
+      '@type': 'ItemList',
+      '@id': `${SITE_URL}#products`,
+      itemListOrder: 'https://schema.org/ItemListOrderAscending',
+      numberOfItems: visibleProducts.length,
+      itemListElement: topProducts.map((product, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        url: `${SITE_URL}#${getProductAnchorId(product)}`,
+        name: product.name || `موديل ${product.model || ''}`.trim()
+      }))
+    },
+    ...topProducts.map((product) => ({
+      '@type': 'Product',
+      '@id': `${SITE_URL}#${getProductAnchorId(product)}-data`,
+      name: product.name || `موديل ${product.model || ''}`.trim(),
+      image: [getPublicImageUrl(product)],
+      description: buildProductDescription(product),
+      sku: String(product.model || product.id || ''),
+      category: getCodeCategoryLabel(product.codeCategory) || 'ملابس أطفال',
+      brand: { '@type': 'Brand', name: brand },
+      itemCondition: 'https://schema.org/NewCondition',
+      url: `${SITE_URL}#${getProductAnchorId(product)}`,
+      offers: {
+        '@type': 'Offer',
+        priceCurrency: 'EGP',
+        price: String(getDisplayPrice(product)),
+        availability: 'https://schema.org/InStock',
+        url: `${SITE_URL}#${getProductAnchorId(product)}`
+      }
+    }))
+  ];
+  script.textContent = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph });
+}
+
+function renderCart() {
+  saveLocalJSON(CART_STORAGE_KEY, state.cart);
+  const count = state.cart.reduce((sum, item) => sum + item.qty, 0);
+  el.cartCount.textContent = String(count);
+  el.cartItemsCount.textContent = getSeriesCountLabel(count);
+  el.cartItems.innerHTML = '';
+  if (!state.cart.length) {
+    el.cartItems.innerHTML = '<div class="cart-item"><div class="muted">السلة فارغة</div></div>';
+    el.cartTotal.textContent = formatCurrency(0);
+    return;
+  }
+  let total = 0;
+  state.cart.forEach((item) => {
+    total += toNumber(item.unitPrice) * item.qty;
+    const card = document.createElement('div');
+    card.className = 'cart-item';
+    card.innerHTML = `
+      <img class="cart-thumb" src="${escapeAttr(getMiniImageUrl(item.imageUrl || placeholderImage(item.name || 'Jood Kids')))}" alt="${escapeAttr(buildProductAlt(item))}" loading="lazy" decoding="async" />
+      <div>
+        <h4>${escapeHTML(item.name || '')}</h4>
+        <div class="muted">موديل ${escapeHTML(item.model || '')}</div>
+        <div class="muted">${escapeHTML(getSeriesLabel(item))}</div>
+        <div class="muted">سعر القطعة ${formatCurrency(getPiecePrice(item))}</div>
+        <strong>سعر السيري ${formatCurrency(toNumber(item.unitPrice))}</strong>
+      </div>
+      <div class="qty-box">
+        <button data-action="plus">+</button>
+        <span>${item.qty}</span>
+        <button data-action="minus">-</button>
+      </div>`;
+    card.querySelector('[data-action="plus"]').addEventListener('click', () => changeCartQty(item.id, 1));
+    card.querySelector('[data-action="minus"]').addEventListener('click', () => changeCartQty(item.id, -1));
+    card.querySelector('.cart-thumb').addEventListener('click', () => openGallery(item.imageUrl ? [item.imageUrl] : [placeholderImage(item.name || 'Jood Kids')], 0));
+    el.cartItems.appendChild(card);
+  });
+  el.cartTotal.textContent = formatCurrency(total);
+}
+
+function renderAdminForms() {
+  el.companyNameInput.value = state.company.companyName || state.storefront.companyName || '';
+  el.companyTaglineInput.value = state.company.tagline || state.storefront.tagline || '';
+  el.heroTitleInput.value = state.storefront.heroTitle || '';
+  el.heroSubtitleInput.value = state.storefront.heroSubtitle || '';
+  el.heroBadgeInput.value = state.storefront.heroBadge || '';
+  el.logoUrlInput.value = state.storefront.logoUrl || '';
+  el.accentColorInput.value = state.storefront.accentColor || DEFAULT_STOREFRONT.accentColor;
+  el.accentColor2Input.value = state.storefront.accentColor2 || DEFAULT_STOREFRONT.accentColor2;
+  el.featuredLimitInput.value = String(state.storefront.featuredLimit ?? 8);
+  el.installEnabledInput.value = String(Boolean(state.storefront.installEnabled));
+  el.floatingWhatsappInput.value = String(Boolean(state.storefront.floatingWhatsappEnabled));
+  el.companyPhoneInput.value = state.company.phone1 || '';
+  el.companyPhone2Input.value = state.company.phone2 || '';
+  el.companyWhatsappInput.value = state.company.whatsapp || '';
+  el.companyAddressInput.value = state.company.address || '';
+  el.companyInstagramInput.value = state.company.instagram || '';
+  el.companyFacebookInput.value = state.company.facebook || '';
+  el.companyTelegramInput.value = state.company.telegram || '';
+  el.factoryMapInput.value = state.company.factoryMap || '';
+  el.shopMapInput.value = state.company.shopMap || '';
+  el.cloudinaryPresetInput.value = state.company.cloudinaryPreset || DEFAULT_COMPANY.cloudinaryPreset;
+  el.companyAboutInput.value = state.company.about || '';
+  el.paymentPolicyInput.value = state.payments.policyText || DEFAULT_PAYMENT_POLICY;
+  el.returnPolicyInput.value = state.storeSettings.returnPolicy || DEFAULT_RETURN_POLICY;
+  el.shippingPolicyInput.value = state.storeSettings.shippingPolicy || DEFAULT_SHIPPING_POLICY;
+  el.termsPolicyInput.value = state.storeSettings.termsPolicy || DEFAULT_TERMS_POLICY;
+  el.seasonsInput.value = getSeasonOptions().join(', ');
+  el.adminProductsCount.textContent = String(state.products.length);
+  el.adminOrdersCount.textContent = String(state.orders.length);
+  el.adminCategoriesCount.textContent = String(getCodeCategoryKeys().length);
+  el.adminOrdersTotal.textContent = formatCurrency(state.orders.reduce((sum, item) => sum + toNumber(item.total), 0));
+}
+
+function rebuildSeasonOptions() {
+  const options = getSeasonOptions();
+  const current = el.productSeasonInput.value;
+  el.productSeasonInput.innerHTML = '';
+  options.forEach((season) => {
+    const option = document.createElement('option');
+    option.value = season;
+    option.textContent = season;
+    el.productSeasonInput.appendChild(option);
+  });
+  el.productSeasonInput.value = options.includes(current) ? current : (options[0] || 'صيفي');
+}
+
+function renderCategoryManager() {
+  el.categoryManagerList.innerHTML = '';
+  const keys = getCodeCategoryKeys();
+  if (!keys.length) {
+    el.categoryManagerList.innerHTML = '<div class="category-item"><div class="muted">لا توجد تصنيفات بعد</div></div>';
+    return;
+  }
+  keys.forEach((key) => {
+    const categoryDoc = state.categories.find((item) => item.type === 'code' && String(item.code || item.label) === String(key));
+    const wrapper = document.createElement('div');
+    wrapper.className = 'category-item';
+    const inputId = `cat-${key}`;
+    wrapper.innerHTML = `<div class="category-code">${escapeHTML(key)}</div><div class="field"><label for="${escapeAttr(inputId)}">الاسم الظاهر</label><input id="${escapeAttr(inputId)}" type="text" value="${escapeAttr(categoryDoc?.label || '')}" placeholder="اسم التصنيف" /></div><button class="ghost-btn">حفظ</button>`;
+    wrapper.querySelector('button').addEventListener('click', () => saveCodeCategoryLabel(key, wrapper.querySelector('input').value));
+    el.categoryManagerList.appendChild(wrapper);
+  });
+}
+
+function renderAdminProducts() {
+  el.adminProductsList.innerHTML = '';
+  let products = [...state.products];
+  if (state.featuredOnlyAdmin) products = products.filter((item) => item.pinned);
+  products.forEach((product) => {
+    const urls = normalizeImageUrls(product.imageUrls);
+    const item = document.createElement('div');
+    item.className = 'admin-item admin-product-item';
+    item.innerHTML = `
+      <img class="admin-product-thumb" src="${escapeAttr(getMiniImageUrl(urls[0] || placeholderImage(product.name || product.model || 'Jood Kids')))}" alt="${escapeAttr(buildProductAlt(product))}" loading="lazy" decoding="async" />
+      <div>
+        <h4>${escapeHTML(product.name || '')}</h4>
+        <div class="muted">موديل ${escapeHTML(product.model || '')} • ${escapeHTML(getCodeCategoryLabel(product.codeCategory))} • ${escapeHTML(product.season || '')}</div>
+        <div class="muted">${hasDiscount(product) ? `خصم ${Math.round(toNumber(product.discountPercent))}% • ` : ''}سعر القطعة ${formatCurrency(getPiecePrice(product))} • سعر السيري ${formatCurrency(getDisplayPrice(product))} • ${escapeHTML(getSeriesLabel(product))}</div>
+      </div>
+      <div class="admin-actions"><button class="ghost-btn" data-edit>تعديل</button><button class="ghost-btn" data-pin>${product.pinned ? 'إلغاء التثبيت' : 'تثبيت'}</button><button class="danger-btn" data-del>حذف</button></div>`;
+    item.querySelector('[data-edit]').addEventListener('click', () => populateProductForm(product));
+    item.querySelector('[data-pin]').addEventListener('click', () => togglePinned(product));
+    item.querySelector('[data-del]').addEventListener('click', () => deleteProduct(product.id));
+    el.adminProductsList.appendChild(item);
+  });
+}
+
+function renderAdminOrders() {
+  el.adminOrdersList.innerHTML = '';
+  if (!state.orders.length) {
+    el.adminOrdersList.innerHTML = '<div class="order-item"><div class="muted">لا توجد طلبات</div></div>';
+    return;
+  }
+  state.orders.forEach((order) => {
+    const card = document.createElement('div');
+    card.className = 'order-item';
+    card.innerHTML = `
+      <h4>${escapeHTML(order.customerName || '')}</h4>
+      <div class="muted">${escapeHTML(order.customerPhone || '')} • ${escapeHTML(order.city || '')}</div>
+      <div class="muted">${escapeHTML(order.address || '')}</div>
+      <div class="muted">${escapeHTML(order.paymentMethod || '')} • ${escapeHTML(order.shippingMethod || '')}</div>
+      <div style="margin-top:8px"><strong>${formatCurrency(toNumber(order.total))}</strong></div>
+      <div class="muted" style="margin-top:8px">${(order.items || []).map((item) => `${item.name} (${item.qty} سيري / ${getSeriesQtyText(item)})`).join(' • ')}</div>
+      <div class="order-actions" style="margin-top:12px">
+        <select data-status>${['جديد', 'قيد المراجعة', 'مكتمل', 'ملغي'].map((status) => `<option value="${status}" ${order.status === status ? 'selected' : ''}>${status}</option>`).join('')}</select>
+        <button class="ghost-btn" data-copy>نسخ واتساب</button>
+        <button class="danger-btn" data-del>حذف</button>
+      </div>`;
+    card.querySelector('[data-status]').addEventListener('change', (e) => updateOrderStatus(order.id, e.target.value));
+    card.querySelector('[data-copy]').addEventListener('click', () => copyText(buildWhatsAppOrderMessage(order)));
+    card.querySelector('[data-del]').addEventListener('click', () => deleteOrder(order.id));
+    el.adminOrdersList.appendChild(card);
+  });
+}
+
+async function adminLogin() {
+  try {
+    await signInWithEmailAndPassword(auth, el.adminEmail.value.trim(), el.adminPassword.value);
+    const user = auth.currentUser;
+    if (!user || user.uid !== ADMIN_UID) {
+      await signOut(auth).catch(() => {});
+      return showToast('هذا الحساب ليس أدمن');
+    }
+    showToast('تم تسجيل الدخول');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر تسجيل الدخول');
+  }
+}
+
+async function adminLogout() {
+  try {
+    await signOut(auth);
+    showToast('تم تسجيل الخروج');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر تسجيل الخروج');
+  }
+}
+
+function handleAuthChange(user) {
+  if (user && user.uid !== ADMIN_UID) {
+    state.authUser = null;
+    state.isAdmin = false;
+    el.authStatus.textContent = 'غير مصرح';
+    el.adminContent.classList.add('hidden');
+    subscribeOrdersIfAdmin();
+    signOut(auth).catch(() => {});
+    showToast('هذا الحساب ليس له صلاحية الإدارة');
+    return;
+  }
+  state.authUser = user;
+  state.isAdmin = Boolean(user && user.uid === ADMIN_UID);
+  el.authStatus.textContent = user ? (user.email || user.uid) : 'غير مسجل';
+  el.adminContent.classList.toggle('hidden', !state.isAdmin);
+  subscribeOrdersIfAdmin();
+}
+
+async function saveAppearance() {
+  if (!guardAdmin()) return;
+  try {
+    await Promise.all([
+      setDoc(doc(db, 'company', 'main'), { companyName: el.companyNameInput.value.trim(), tagline: el.companyTaglineInput.value.trim(), updatedAt: serverTimestamp() }, { merge: true }),
+      setDoc(doc(db, 'settings', 'storefront'), {
+        companyName: el.companyNameInput.value.trim(),
+        tagline: el.companyTaglineInput.value.trim(),
+        heroTitle: el.heroTitleInput.value.trim(),
+        heroSubtitle: el.heroSubtitleInput.value.trim(),
+        heroBadge: el.heroBadgeInput.value.trim(),
+        logoUrl: el.logoUrlInput.value.trim(),
+        accentColor: el.accentColorInput.value,
+        accentColor2: el.accentColor2Input.value,
+        featuredLimit: Math.max(0, toInt(el.featuredLimitInput.value || '0')),
+        installEnabled: el.installEnabledInput.value === 'true',
+        floatingWhatsappEnabled: el.floatingWhatsappInput.value === 'true',
+        updatedAt: serverTimestamp(),
+      }, { merge: true }),
+    ]);
+    showToast('تم حفظ الواجهة');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر حفظ الواجهة');
+  }
+}
+
+async function saveCompanyData() {
+  if (!guardAdmin()) return;
+  try {
+    await setDoc(doc(db, 'company', 'main'), {
+      companyName: el.companyNameInput.value.trim(),
+      tagline: el.companyTaglineInput.value.trim(),
+      phone1: el.companyPhoneInput.value.trim(),
+      phone2: el.companyPhone2Input.value.trim(),
+      whatsapp: el.companyWhatsappInput.value.trim(),
+      address: el.companyAddressInput.value.trim(),
+      instagram: el.companyInstagramInput.value.trim(),
+      facebook: el.companyFacebookInput.value.trim(),
+      telegram: el.companyTelegramInput.value.trim(),
+      factoryMap: el.factoryMapInput.value.trim(),
+      shopMap: el.shopMapInput.value.trim(),
+      cloudinaryPreset: el.cloudinaryPresetInput.value.trim() || 'Joodkids',
+      about: el.companyAboutInput.value.trim(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    showToast('تم حفظ بيانات الشركة');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر حفظ بيانات الشركة');
+  }
+}
+
+async function savePolicies() {
+  if (!guardAdmin()) return;
+  try {
+    await Promise.all([
+      setDoc(doc(db, 'payments', 'default'), { policyText: el.paymentPolicyInput.value.trim(), methods: DEFAULT_PAYMENT_METHODS, updatedAt: serverTimestamp() }, { merge: true }),
+      setDoc(doc(db, 'settings', 'store'), {
+        returnPolicy: el.returnPolicyInput.value.trim(),
+        shippingPolicy: el.shippingPolicyInput.value.trim(),
+        termsPolicy: el.termsPolicyInput.value.trim(),
+        seasons: parseCommaList(el.seasonsInput.value),
+        updatedAt: serverTimestamp(),
+      }, { merge: true }),
+      setDoc(doc(db, 'shipping', 'default'), { policyText: el.shippingPolicyInput.value.trim(), updatedAt: serverTimestamp() }, { merge: true }),
+    ]);
+    showToast('تم حفظ السياسات');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر حفظ السياسات');
+  }
+}
+
+async function saveSeasons() {
+  if (!guardAdmin()) return;
+  const seasons = parseCommaList(el.seasonsInput.value);
+  try {
+    await setDoc(doc(db, 'settings', 'store'), { seasons, updatedAt: serverTimestamp() }, { merge: true });
+    for (const season of seasons) {
+      await setDoc(doc(db, 'categories', `season-${season}`), { type: 'season', season, label: season, updatedAt: serverTimestamp() }, { merge: true });
+    }
+    showToast('تم حفظ المواسم');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر حفظ المواسم');
+  }
+}
+
+async function saveCodeCategoryLabel(code, label) {
+  if (!guardAdmin()) return;
+  try {
+    const cleanLabel = String(label || '').trim();
+    if (!cleanLabel) {
+      await deleteDoc(doc(db, 'categories', `code-${code}`));
+      showToast('تم مسح اسم التصنيف');
+      return;
+    }
+    await setDoc(doc(db, 'categories', `code-${code}`), { type: 'code', code: String(code), label: cleanLabel, updatedAt: serverTimestamp() }, { merge: true });
+    showToast('تم حفظ التصنيف');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر حفظ التصنيف');
+  }
+}
+
+function syncDraftImagesFromTextarea() {
+  state.productImagesDraft = textareaLines(el.productImageUrlsInput.value);
+  renderProductPreview();
+}
+
+async function handleProductFileUpload(event) {
+  if (!guardAdmin()) return;
+  const files = [...(event.target.files || [])];
+  if (!files.length) return;
+  try {
+    const folder = sanitizePathSegment(el.productModelInput.value || 'products');
+    const urls = await uploadFilesToCloudinary(files, folder);
+    state.productImagesDraft = [...state.productImagesDraft, ...urls];
+    el.productImageUrlsInput.value = state.productImagesDraft.join('\n');
+    renderProductPreview();
+    showToast('تم رفع الصور');
+  } catch (error) {
+    console.error(error);
+    showToast(getFriendlyUploadError(error));
+  } finally {
+    el.productImagesInput.value = '';
+    el.uploadStatus.textContent = '';
+  }
+}
+
+async function handleSingleAssetUpload(event) {
+  if (!guardAdmin()) return;
+  const file = event.target.files?.[0];
+  if (!file || !state.assetTargetInputId) return;
+  try {
+    const [url] = await uploadFilesToCloudinary([file], 'branding');
+    const target = id(state.assetTargetInputId);
+    if (target) target.value = url;
+    showToast('تم رفع الصورة');
+  } catch (error) {
+    console.error(error);
+    showToast(getFriendlyUploadError(error));
+  } finally {
+    el.singleAssetUploader.value = '';
+    state.assetTargetInputId = '';
+    el.uploadStatus.textContent = '';
+  }
+}
+
+async function uploadFilesToCloudinary(files, folder) {
+  const preset = (state.company.cloudinaryPreset || el.cloudinaryPresetInput.value || 'Joodkids').trim();
+  const urls = [];
+  for (const file of files) {
+    el.uploadStatus.textContent = `جارٍ رفع ${file.name}...`;
+    const body = new FormData();
+    body.append('file', file);
+    body.append('upload_preset', preset);
+    body.append('folder', `joodkids/${folder}`);
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const msg = data?.error?.message || data?.message || response.statusText || 'Cloudinary upload failed';
+      throw new Error(msg);
+    }
+    urls.push(data.secure_url);
+  }
+  return urls;
+}
+
+function getFriendlyUploadError(error) {
+  const message = String(error?.message || '').trim();
+  if (!message) return 'تعذر رفع الصورة';
+  if (message.includes('Upload preset must be specified')) return 'يجب إدخال اسم Upload Preset من Cloudinary داخل لوحة التحكم';
+  if (message.includes('Upload preset not found')) return 'اسم Upload Preset غير صحيح أو غير موجود في Cloudinary';
+  if (message.includes('must be unsigned')) return 'الـ Upload Preset يجب أن يكون Unsigned وليس Signed';
+  if (message.includes('File size too large')) return 'حجم الصورة أكبر من المسموح في إعدادات Cloudinary';
+  if (message.includes('Invalid image file')) return 'الملف ليس صورة صالحة';
+  return `تعذر الرفع: ${message}`;
+}
+
+async function saveProduct() {
+  if (!guardAdmin()) return;
+  const name = el.productNameInput.value.trim();
+  const model = el.productModelInput.value.trim();
+  const rawPricePiece = el.productPriceInput.value.trim();
+  const pricePiece = toNumber(rawPricePiece);
+  const season = el.productSeasonInput.value || getSeasonOptions()[0] || 'صيفي';
+  const discountPercent = clamp(toNumber(el.productDiscountInput.value), 0, 99);
+  const seriesQtyText = el.productMinQtyInput.value.trim();
+  const seriesQtyNumber = getSeriesQtyNumber({ seriesQtyText });
+  const priceWholesale = round2(pricePiece * seriesQtyNumber);
+  if (!name || !model || rawPricePiece === '' || !seriesQtyText) return showToast('الاسم والموديل وسعر القطعة وكمية السيري مطلوبة');
+  const payload = {
+    name,
+    model,
+    pricePiece,
+    priceWholesale,
+    discountPercent,
+    season,
+    sizes: el.productSizesInput.value.trim(),
+    seriesQtyText,
+    badgeText: el.productBadgeInput.value.trim(),
+    pinned: el.productPinnedInput.value === 'true',
+    visible: el.productVisibleInput.value === 'true',
+    description: el.productDescriptionInput.value.trim(),
+    codeCategory: deriveCodeCategory(model),
+    imageUrls: normalizeImageUrls(state.productImagesDraft),
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    if (state.editingProductId) {
+      await updateDoc(doc(db, 'products', state.editingProductId), payload);
+      showToast('تم تحديث المنتج');
+    } else {
+      await addDoc(collection(db, 'products'), { ...payload, createdAt: serverTimestamp() });
+      showToast('تمت إضافة المنتج');
+    }
+    resetProductForm();
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر حفظ المنتج');
+  }
+}
+
+function populateProductForm(product) {
+  state.editingProductId = product.id;
+  el.productFormTitle.textContent = `تعديل ${product.name || ''}`;
+  el.productNameInput.value = product.name || '';
+  el.productModelInput.value = product.model || '';
+  el.productPriceInput.value = String(getPiecePrice(product));
+  el.productDiscountInput.value = String(toInt(product.discountPercent || 0));
+  el.productSeasonInput.value = product.season || getSeasonOptions()[0] || 'صيفي';
+  el.productSizesInput.value = product.sizes || '';
+  el.productMinQtyInput.value = getSeriesQtyText(product);
+  el.productBadgeInput.value = product.badgeText || '';
+  el.productPinnedInput.value = String(Boolean(product.pinned));
+  el.productVisibleInput.value = String(product.visible !== false);
+  el.productDescriptionInput.value = product.description || '';
+  state.productImagesDraft = normalizeImageUrls(product.imageUrls);
+  el.productImageUrlsInput.value = state.productImagesDraft.join('\n');
+  renderProductPreview();
+  openDrawer('admin');
+}
+
+function resetProductForm() {
+  state.editingProductId = null;
+  el.productFormTitle.textContent = 'إضافة منتج';
+  el.productNameInput.value = '';
+  el.productModelInput.value = '';
+  el.productPriceInput.value = '';
+  el.productDiscountInput.value = '0';
+  el.productSeasonInput.value = getSeasonOptions()[0] || 'صيفي';
+  el.productSizesInput.value = '';
+  el.productMinQtyInput.value = '1';
+  el.productBadgeInput.value = '';
+  el.productPinnedInput.value = 'true';
+  el.productVisibleInput.value = 'true';
+  el.productDescriptionInput.value = '';
+  el.productImageUrlsInput.value = '';
+  state.productImagesDraft = [];
+  renderProductPreview();
+}
+
+function renderProductPreview() {
+  el.productImagesPreview.innerHTML = '';
+  state.productImagesDraft.forEach((url, index) => {
+    const item = document.createElement('div');
+    item.className = 'preview-image';
+    item.innerHTML = `<img src="${escapeAttr(url)}" alt="preview" /><button class="preview-remove"><i class="fa-solid fa-xmark"></i></button>`;
+    item.querySelector('button').addEventListener('click', () => {
+      state.productImagesDraft.splice(index, 1);
+      el.productImageUrlsInput.value = state.productImagesDraft.join('\n');
+      renderProductPreview();
+    });
+    el.productImagesPreview.appendChild(item);
+  });
+}
+
+async function togglePinned(product) {
+  if (!guardAdmin()) return;
+  try {
+    await updateDoc(doc(db, 'products', product.id), { pinned: !product.pinned, updatedAt: serverTimestamp() });
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر تحديث التثبيت');
+  }
+}
+
+async function deleteProduct(productId) {
+  if (!guardAdmin()) return;
+  if (!confirm('حذف هذا المنتج؟')) return;
+  try {
+    await deleteDoc(doc(db, 'products', productId));
+    showToast('تم حذف المنتج');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر حذف المنتج');
+  }
+}
+
+function togglePinnedAdminFilter() {
+  state.featuredOnlyAdmin = !state.featuredOnlyAdmin;
+  el.togglePinnedFilterBtn.textContent = state.featuredOnlyAdmin ? 'كل المنتجات' : 'المثبت فقط';
+  renderAdminProducts();
+}
+
+async function addToCart(productId) {
+  const product = state.products.find((item) => item.id === productId);
+  if (!product) return;
+  const existing = state.cart.find((item) => item.id === productId);
+  const unitPrice = getDisplayPrice(product);
+  if (existing) existing.qty += 1;
+  else state.cart.push({ id: product.id, name: product.name, model: product.model, unitPrice, originalPrice: getSeriesBasePrice(product), pricePiece: getPiecePrice(product), discountPercent: toNumber(product.discountPercent || 0), imageUrl: normalizeImageUrls(product.imageUrls)[0] || '', qty: 1, seriesQtyText: getSeriesQtyText(product) });
+  renderCart();
+  showToast('تمت إضافة السيري');
+}
+
+function changeCartQty(productId, delta) {
+  const item = state.cart.find((entry) => entry.id === productId);
+  if (!item) return;
+  item.qty += delta;
+  if (item.qty <= 0) state.cart = state.cart.filter((entry) => entry.id !== productId);
+  renderCart();
+}
+
+async function submitOrder() {
+  const customerName = el.customerNameInput.value.trim();
+  const customerPhone = el.customerPhoneInput.value.trim();
+  const city = el.customerCityInput.value.trim();
+  const address = el.customerAddressInput.value.trim();
+  const paymentMethod = el.paymentMethodInput.value;
+  const shippingMethod = el.shippingMethodInput.value;
+  const notes = el.customerNotesInput.value.trim();
+  if (!customerName || !customerPhone || !city || !address) return showToast('أكمل بيانات العميل');
+  if (!state.cart.length) return showToast('السلة فارغة');
+  const total = state.cart.reduce((sum, item) => sum + toNumber(item.unitPrice) * item.qty, 0);
+  const order = {
+    customerName, customerPhone, city, address, paymentMethod, shippingMethod, notes, total, status: 'جديد',
+    items: state.cart.map((item) => ({ productId: item.id, name: item.name, model: item.model, unitPrice: item.unitPrice, pricePiece: getPiecePrice(item), qty: item.qty, seriesQtyText: getSeriesQtyText(item), imageUrl: item.imageUrl })),
+    createdAt: serverTimestamp(),
+  };
+  try {
+    el.submitOrderBtn.disabled = true;
+    await addDoc(collection(db, 'orders'), order);
+    const whatsapp = buildWhatsAppLink(buildWhatsAppOrderMessage({ ...order, items: state.cart }));
+    if (whatsapp) window.open(whatsapp, '_blank');
+    state.cart = [];
+    renderCart();
+    ['customerNameInput', 'customerPhoneInput', 'customerCityInput', 'customerAddressInput', 'customerNotesInput'].forEach((key) => el[key].value = '');
+    closeModal('checkoutModal');
+    closeDrawers();
+    showToast('تم إرسال الطلب');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر إرسال الطلب');
+  } finally {
+    el.submitOrderBtn.disabled = false;
+  }
+}
+
+async function updateOrderStatus(orderId, status) {
+  if (!guardAdmin()) return;
+  try {
+    await updateDoc(doc(db, 'orders', orderId), { status, updatedAt: serverTimestamp() });
+    showToast('تم تحديث الطلب');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر تحديث الطلب');
+  }
+}
+
+async function deleteOrder(orderId) {
+  if (!guardAdmin()) return;
+  if (!confirm('حذف هذا الطلب؟')) return;
+  try {
+    await deleteDoc(doc(db, 'orders', orderId));
+    showToast('تم حذف الطلب');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر حذف الطلب');
+  }
+}
+
+function exportProductsExcel() {
+  const rows = state.products.map((product) => ({ name: product.name || '', model: product.model || '', pricePiece: getPiecePrice(product), priceWholesale: getSeriesBasePrice(product), discountPercent: toNumber(product.discountPercent || 0), season: product.season || '', sizes: product.sizes || '', seriesQtyText: getSeriesQtyText(product), badgeText: product.badgeText || '', pinned: Boolean(product.pinned), visible: product.visible !== false, description: product.description || '', imageUrls: normalizeImageUrls(product.imageUrls).join('\n') }));
+  exportSheet(rows, 'products');
+}
+
+function exportOrdersExcel() {
+  const rows = state.orders.flatMap((order) => (order.items || []).map((item) => ({ customerName: order.customerName || '', customerPhone: order.customerPhone || '', city: order.city || '', address: order.address || '', paymentMethod: order.paymentMethod || '', shippingMethod: order.shippingMethod || '', status: order.status || '', productName: item.name || '', model: item.model || '', seriesQtyText: getSeriesQtyText(item), piecePrice: getPiecePrice(item), seriesPrice: toNumber(item.unitPrice || 0), seriesCount: toInt(item.qty || 0), total: toNumber(order.total || 0) })));
+  exportSheet(rows, 'orders');
+}
+
+function exportSheet(rows, filename) {
+  if (window.XLSX) {
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{ info: 'لا توجد بيانات' }]);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'data');
+    XLSX.writeFile(workbook, `${filename}.xlsx`);
+    return;
+  }
+  const csv = convertRowsToCsv(rows);
+  downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `${filename}.csv`);
+}
+
+async function importProductsExcel(event) {
+  if (!guardAdmin()) return;
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const rows = await readExcelRows(file);
+    if (!rows.length) return showToast('الملف فارغ');
+    const batch = writeBatch(db);
+    rows.forEach((row) => {
+      const name = firstValue(row, ['name', 'اسم المنتج', 'productName']);
+      const model = firstValue(row, ['model', 'موديل']);
+      const seriesQtyText = String(firstValue(row, ['seriesQtyText', 'seriesQty', 'كمية السيري', 'السيري', 'minQty', 'الحد الأدنى']) || '1').trim();
+      const seriesQtyNumber = getSeriesQtyNumber({ seriesQtyText });
+      const piecePriceRaw = firstValue(row, ['pricePiece', 'piecePrice', 'سعر القطعة']);
+      const seriesPriceRaw = firstValue(row, ['priceWholesale', 'priceSeries', 'price', 'سعر الجملة', 'سعر السيري']);
+      const pricePiece = piecePriceRaw !== undefined && piecePriceRaw !== '' ? Number(piecePriceRaw) : round2(Number(seriesPriceRaw || 0) / seriesQtyNumber);
+      const priceWholesale = seriesPriceRaw !== undefined && seriesPriceRaw !== '' ? Number(seriesPriceRaw) : round2(pricePiece * seriesQtyNumber);
+      if (!name || !model || Number.isNaN(pricePiece) || Number.isNaN(priceWholesale)) return;
+      const ref = doc(collection(db, 'products'));
+      batch.set(ref, {
+        name: String(name).trim(),
+        model: String(model).trim(),
+        pricePiece,
+        priceWholesale,
+        discountPercent: clamp(Number(firstValue(row, ['discountPercent', 'discount', 'نسبة الخصم']) || 0), 0, 99),
+        season: String(firstValue(row, ['season', 'الموسم']) || getSeasonOptions()[0] || 'صيفي').trim(),
+        sizes: String(firstValue(row, ['sizes', 'المقاسات']) || '').trim(),
+        seriesQtyText,
+        badgeText: String(firstValue(row, ['badgeText', 'شارة']) || '').trim(),
+        pinned: toBool(firstValue(row, ['pinned', 'تثبيت']) || false),
+        visible: String(firstValue(row, ['visible', 'إظهار']) || 'true').trim() === '' ? true : toBool(firstValue(row, ['visible', 'إظهار']) || true),
+        description: String(firstValue(row, ['description', 'الوصف']) || '').trim(),
+        codeCategory: deriveCodeCategory(model),
+        imageUrls: normalizeImageUrls(textareaLines(firstValue(row, ['imageUrls', 'الصور']) || '').concat(parseMaybeArray(firstValue(row, ['imageUrl', 'صورة']) || ''))),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    });
+    await batch.commit();
+    showToast('تم استيراد المنتجات');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر استيراد الملف');
+  } finally {
+    el.excelImportInput.value = '';
+  }
+}
+
+async function deleteCollectionDocs(collectionName, confirmText) {
+  if (!guardAdmin()) return;
+  const answer = prompt(`للتأكيد ${confirmText}`);
+  if (answer !== confirmText) return;
+  try {
+    const snapshot = await getDocs(collection(db, collectionName));
+    const batch = writeBatch(db);
+    snapshot.docs.forEach((entry) => batch.delete(entry.ref));
+    if (!snapshot.empty) await batch.commit();
+    showToast('تم الحذف');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر الحذف');
+  }
+}
+
+async function deleteAllData() {
+  if (!guardAdmin()) return;
+  const answer = prompt('للتأكيد النهائي اكتب حذف كل البيانات');
+  if (answer !== 'حذف كل البيانات') return;
+  try {
+    for (const name of ['products', 'orders', 'categories']) {
+      const snapshot = await getDocs(collection(db, name));
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((entry) => batch.delete(entry.ref));
+      if (!snapshot.empty) await batch.commit();
+    }
+    await Promise.all([
+      setDoc(doc(db, 'company', 'main'), DEFAULT_COMPANY),
+      setDoc(doc(db, 'settings', 'storefront'), DEFAULT_STOREFRONT),
+      setDoc(doc(db, 'settings', 'store'), DEFAULT_STORE_SETTINGS),
+      setDoc(doc(db, 'payments', 'default'), { policyText: DEFAULT_PAYMENT_POLICY, methods: DEFAULT_PAYMENT_METHODS }),
+      setDoc(doc(db, 'shipping', 'default'), { policyText: DEFAULT_SHIPPING_POLICY }),
+    ]);
+    state.cart = [];
+    renderCart();
+    showToast('تمت إعادة ضبط البيانات');
+  } catch (error) {
+    console.error(error);
+    showToast('تعذر حذف البيانات');
+  }
+}
+
+function openDrawer(which) {
+  el.overlay.classList.add('show');
+  [el.menuDrawer, el.cartDrawer, el.adminDrawer].forEach((drawer) => drawer.classList.remove('show'));
+  document.body.classList.add('drawer-open');
+  document.body.classList.remove('menu-drawer-open', 'cart-drawer-open', 'admin-drawer-open');
+  if (which === 'menu') {
+    el.menuDrawer.classList.add('show');
+    document.body.classList.add('menu-drawer-open');
+  }
+  if (which === 'cart') {
+    el.cartDrawer.classList.add('show');
+    document.body.classList.add('cart-drawer-open');
+  }
+  if (which === 'admin') {
+    el.adminDrawer.classList.add('show');
+    document.body.classList.add('admin-drawer-open');
+  }
+}
+
+function closeDrawers() {
+  [el.menuDrawer, el.cartDrawer, el.adminDrawer].forEach((drawer) => drawer.classList.remove('show'));
+  el.overlay.classList.remove('show');
+  document.body.classList.remove('drawer-open', 'menu-drawer-open', 'cart-drawer-open', 'admin-drawer-open');
+}
+
+function openModal(modalId) {
+  document.querySelectorAll('.modal').forEach((modal) => {
+    modal.classList.toggle('show', modal.id === modalId);
+  });
+  document.body.classList.add('modal-open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(modalId) {
+  if (modalId) id(modalId)?.classList.remove('show');
+  if (!document.querySelector('.modal.show')) {
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+  }
+}
+
+function openPolicy(title, text) {
+  closeDrawers();
+  el.policyModalTitle.textContent = title;
+  el.policyModalContent.textContent = text || '';
+  openModal('policyModal');
+}
+
+function openGallery(urls, index = 0) {
+  state.gallery.urls = urls;
+  state.gallery.index = index;
+  syncGallery();
+  openModal('imageModal');
+}
+
+function changeGallery(delta) {
+  if (!state.gallery.urls.length) return;
+  state.gallery.index = (state.gallery.index + delta + state.gallery.urls.length) % state.gallery.urls.length;
+  syncGallery();
+}
+
+function syncGallery() {
+  const rawUrl = String(state.gallery.urls[state.gallery.index] || '').trim();
+  const optimizedUrl = getGalleryImageUrl(rawUrl);
+  const fallbackUrl = rawUrl || placeholderImage('Jood Kids');
+  el.modalImage.alt = `صورة منتج ${state.gallery.index + 1} - ${getBrandDisplayName()}`;
+  el.modalImage.dataset.fallbackUrl = fallbackUrl;
+  el.modalImage.dataset.failedOnce = '0';
+  el.modalImage.onerror = () => {
+    if (el.modalImage.dataset.failedOnce === '1') {
+      el.modalImage.onerror = null;
+      el.modalImage.src = placeholderImage('Jood Kids');
+      return;
+    }
+    el.modalImage.dataset.failedOnce = '1';
+    el.modalImage.src = fallbackUrl;
+  };
+  el.modalImage.src = optimizedUrl || fallbackUrl;
+  el.galleryThumbs.innerHTML = '';
+  state.gallery.urls.forEach((imageUrl, index) => {
+    const button = document.createElement('button');
+    button.className = index === state.gallery.index ? 'active' : '';
+    button.innerHTML = `<img src="${escapeAttr(getMiniImageUrl(imageUrl) || imageUrl || placeholderImage('Jood Kids'))}" alt="صورة مصغرة للمنتج ${index + 1}" loading="lazy" decoding="async" />`;
+    button.addEventListener('click', () => { state.gallery.index = index; syncGallery(); });
+    el.galleryThumbs.appendChild(button);
+  });
+}
+
+function setupInstallPrompt() {
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    state.deferredInstallPrompt = event;
+    const showInstall = state.storefront.installEnabled;
+    el.installBtn.classList.toggle('hidden', !showInstall);
+    el.menuInstallBtn.classList.toggle('hidden', !showInstall);
+  });
+}
+
+async function installPwa() {
+  closeDrawers();
+  if (!state.deferredInstallPrompt) return showToast('التثبيت غير متاح الآن');
+  state.deferredInstallPrompt.prompt();
+  await state.deferredInstallPrompt.userChoice.catch(() => null);
+  state.deferredInstallPrompt = null;
+  el.installBtn.classList.add('hidden');
+  el.menuInstallBtn.classList.add('hidden');
+}
+
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register(`./service-worker.js?v=${APP_SW_VERSION}`).catch(console.error));
+  }
+}
+
+function openWhatsAppDirect() {
+  const link = buildWhatsAppLink();
+  if (!link) return showToast('رقم الواتساب غير متوفر');
+  safeOpenExternal(link);
+}
+
+function buildWhatsAppLink(message = '') {
+  const phone = normalizeWhatsAppNumber(state.company.whatsapp || state.company.phone1 || '');
+  if (!phone) return '';
+  return `https://wa.me/${phone}${message ? `?text=${encodeURIComponent(message)}` : ''}`;
+}
+
+function buildWhatsAppOrderMessage(order) {
+  return [
+    'طلب جديد',
+    `الاسم: ${order.customerName || ''}`,
+    `الهاتف: ${order.customerPhone || ''}`,
+    `المدينة: ${order.city || ''}`,
+    `العنوان: ${order.address || ''}`,
+    `طريقة الدفع: ${order.paymentMethod || ''}`,
+    `طريقة الاستلام: ${order.shippingMethod || ''}`,
+    'المنتجات:',
+    ...(order.items || []).map((item) => `- ${item.name || ''} | موديل ${item.model || ''} | السيري ${getSeriesQtyText(item)} | سعر القطعة ${formatCurrency(getPiecePrice(item))} | العدد ${item.qty || 0} سيري | سعر السيري ${formatCurrency(item.unitPrice || 0)}`),
+    `الإجمالي: ${formatCurrency(order.total || 0)}`,
+    order.notes ? `ملاحظات: ${order.notes}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+function applyTheme() {
+  const primary = state.storefront.accentColor || DEFAULT_STOREFRONT.accentColor;
+  const secondary = state.storefront.accentColor2 || DEFAULT_STOREFRONT.accentColor2;
+  document.documentElement.style.setProperty('--primary', primary);
+  document.documentElement.style.setProperty('--primary-2', secondary);
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute('content', secondary);
+}
+
+
+function getSeriesQtyText(product) {
+  const value = String(product?.seriesQtyText ?? product?.packQtyText ?? product?.minQty ?? '').trim();
+  if (!value) return '1';
+  return value;
+}
+
+function getSeriesQtyNumber(product) {
+  const text = getSeriesQtyText(product);
+  const match = String(text).match(/\d+(?:\.\d+)?/);
+  const qty = match ? Number(match[0]) : 1;
+  return qty > 0 ? qty : 1;
+}
+
+function getPiecePrice(product) {
+  const explicit = product?.pricePiece ?? product?.piecePrice ?? product?.pricePerPiece;
+  if (explicit !== undefined && explicit !== null && String(explicit).trim() !== '') return round2(toNumber(explicit));
+  const seriesQty = getSeriesQtyNumber(product);
+  const seriesPrice = toNumber(product?.priceWholesale || product?.unitPrice || 0);
+  return seriesQty > 0 ? round2(seriesPrice / seriesQty) : round2(seriesPrice);
+}
+
+function getSeriesBasePrice(product) {
+  if (product && (product.pricePiece !== undefined && product.pricePiece !== null && String(product.pricePiece).trim() !== '')) {
+    return round2(getPiecePrice(product) * getSeriesQtyNumber(product));
+  }
+  return round2(toNumber(product?.priceWholesale || product?.unitPrice || 0));
+}
+
+function getSeriesLabel(product) {
+  const text = getSeriesQtyText(product);
+  return /^\d+(?:\.\d+)?$/.test(text) ? `${text} قطعة في السيري` : text;
+}
+
+function getSeriesCountLabel(count) {
+  const safe = Math.max(0, toInt(count || 0));
+  return `${safe} سيري`;
+}
+
+function clearFilters() {
+  state.filter = { search: '', category: 'all', season: 'all', offersOnly: false, sort: 'featured' };
+  el.searchInput.value = '';
+  el.sortFilter.value = 'featured';
+  resetRenderedProducts();
+  applyFilters();
+}
+
+function resetRenderedProducts() {
+  state.renderedCount = PRODUCT_PAGE_SIZE;
+}
+
+function renderMoreProducts() {
+  state.renderedCount += PRODUCT_PAGE_SIZE;
+  renderProducts();
+}
+
+function buildProductSearchText(product) {
+  return `${product.name || ''} ${product.model || ''} ${product.season || ''} ${product.sizes || ''} ${product.codeCategory || ''}`.toLowerCase();
+}
+
+function enrichProduct(product) {
+  return { ...product, _searchText: buildProductSearchText(product) };
+}
+
+const hasDiscount = (product) => toNumber(product.discountPercent || 0) > 0;
+const getVisibleProducts = () => state.products.filter((item) => item.visible !== false);
+
+function getDisplayPrice(product) {
+  const price = getSeriesBasePrice(product);
+  const discount = clamp(toNumber(product.discountPercent || 0), 0, 99);
+  return round2(price - (price * discount / 100));
+}
+
+function getCodeCategoryKeys() {
+  return [...new Set(state.products.map((item) => String(item.codeCategory || deriveCodeCategory(item.model))).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+}
+
+function getCodeCategoryLabel(code) {
+  const match = state.categories.find((item) => item.type === 'code' && String(item.code || item.label) === String(code));
+  return match?.label || `تصنيف ${code}`;
+}
+
+function getSeasonOptions() {
+  return [...new Set([...(Array.isArray(state.storeSettings.seasons) ? state.storeSettings.seasons : []), ...state.products.map((item) => String(item.season || '').trim()).filter(Boolean)])];
+}
+
+function deriveCodeCategory(modelValue) {
+  const numeric = String(modelValue || '').replace(/\D/g, '');
+  if (!numeric) return '0';
+  return parseInt(numeric, 10) >= 1000 ? numeric.slice(0, 2) : numeric.slice(0, 1);
+}
+
+function parseMaybeArray(value) {
+  if (Array.isArray(value)) return value;
+  const text = String(value || '').trim();
+  if (!text) return [];
+  if (text.startsWith('[')) { try { return JSON.parse(text); } catch { return [text]; } }
+  return [text];
+}
+
+const normalizeImageUrls = (list) => [...new Set((Array.isArray(list) ? list : [list]).flat().map((item) => String(item || '').trim()).filter(Boolean))];
+const textareaLines = (value) => String(value || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+const parseCommaList = (value) => [...new Set(String(value || '').split(',').map((item) => item.trim()).filter(Boolean))];
+const firstValue = (row, keys) => { for (const key of keys) { if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== '') return row[key]; } return ''; };
+const toBool = (value) => ['true', '1', 'yes', 'نعم', 'y'].includes(String(value).trim().toLowerCase());
+const initials = (text) => String(text || 'JK').trim().split(/\s+/).slice(0, 2).map((item) => item[0] || '').join('').toUpperCase() || 'JK';
+
+function optimizeCloudinaryImage(url, { width = 720, height = 900, crop = 'fill' } = {}) {
+  const raw = String(url || '').trim();
+  if (!raw || !raw.includes('res.cloudinary.com') || !raw.includes('/image/upload/')) return raw;
+  const parts = ['f_auto', 'q_auto', 'dpr_auto', `c_${crop}`];
+  if (crop !== 'limit') parts.push('g_auto');
+  if (Number.isFinite(width) && width > 0) parts.push(`w_${Math.round(width)}`);
+  if (Number.isFinite(height) && height > 0) parts.push(`h_${Math.round(height)}`);
+  return raw.replace('/image/upload/', `/image/upload/${parts.join(',')}/`);
+}
+
+function getProductThumbUrl(url) {
+  return optimizeCloudinaryImage(url, { width: 560, height: 700, crop: 'fill' }) || url;
+}
+
+function getMiniImageUrl(url) {
+  return optimizeCloudinaryImage(url, { width: 240, height: 300, crop: 'fill' }) || url;
+}
+
+function getGalleryImageUrl(url) {
+  return optimizeCloudinaryImage(url, { width: 1600, height: NaN, crop: 'limit' }) || String(url || '').trim();
+}
+
+function placeholderImage(text, width = 900, height = 1125) {
+  const bg1 = encodeURIComponent(state.storefront.accentColor || DEFAULT_STOREFRONT.accentColor);
+  const bg2 = encodeURIComponent(state.storefront.accentColor2 || DEFAULT_STOREFRONT.accentColor2);
+  const safeText = escapeHTML(text || 'Jood Kids');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${bg1}"/><stop offset="1" stop-color="${bg2}"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="38" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.22)"/><text x="50%" y="50%" fill="white" font-family="Arial, sans-serif" font-size="48" text-anchor="middle" dominant-baseline="middle">${safeText}</text></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function bindExternalLinkButton(button, getUrl) {
+  if (!button) return;
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    if (button.disabled || button.classList.contains('hidden') || button.offsetParent === null) return;
+    if (document.body.classList.contains('admin-drawer-open') && !button.closest('#contactModal')) return;
+    if (document.body.classList.contains('drawer-open') && !button.closest('#contactModal')) return;
+    const url = typeof getUrl === 'function' ? getUrl() : '';
+    if (!url) return showToast('الرابط غير متوفر');
+    safeOpenExternal(url);
+  });
+}
+
+function safeOpenExternal(url) {
+  const clean = String(url || '').trim();
+  if (!clean) return;
+  window.open(clean, '_blank', 'noopener,noreferrer');
+}
+
+function setActionLink(button, url) {
+  if (!button) return;
+  button.dataset.url = url || '';
+  const enabled = Boolean(url);
+  button.disabled = !enabled;
+  button.style.pointerEvents = enabled ? 'auto' : 'none';
+  button.style.opacity = enabled ? '1' : '.45';
+}
+
+function makeBadge(text) { const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = text; return badge; }
+const formatCurrency = (value) => `${round2(toNumber(value || 0)).toLocaleString('en-US')} ج.م`;
+const toNumber = (value) => { const num = Number(value); return Number.isFinite(num) ? num : 0; };
+const toInt = (value) => parseInt(value, 10) || 0;
+const toMillis = (value) => !value ? 0 : typeof value.toMillis === 'function' ? value.toMillis() : value instanceof Date ? value.getTime() : typeof value === 'number' ? value : new Date(value).getTime() || 0;
+const clamp = (value, min, max) => Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
+const round2 = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const sanitizePathSegment = (value) => String(value || 'folder').trim().replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'folder';
+function normalizeWhatsAppNumber(value) { const digits = String(value || '').replace(/\D/g, ''); if (!digits) return ''; if (digits.startsWith('20')) return digits; if (digits.startsWith('0')) return `2${digits}`; return digits; }
+function loadLocalJSON(key, fallback) { try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; } }
+const saveLocalJSON = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+function debounce(fn, wait = 120) { let timer = 0; return (...args) => { clearTimeout(timer); timer = window.setTimeout(() => fn(...args), wait); }; }
+function showToast(message) { el.toast.textContent = message; el.toast.classList.add('show'); clearTimeout(showToast.timer); showToast.timer = setTimeout(() => el.toast.classList.remove('show'), 2600); }
+function guardAdmin() { if (state.isAdmin) return true; showToast('سجل الدخول أولاً'); openDrawer('admin'); return false; }
+async function readExcelRows(file) { if (!window.XLSX) throw new Error('SheetJS not loaded'); const buffer = await file.arrayBuffer(); const workbook = XLSX.read(buffer, { type: 'array' }); return XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' }); }
+function convertRowsToCsv(rows) { if (!rows.length) return 'info\nلا توجد بيانات'; const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))]; return [headers.join(','), ...rows.map((row) => headers.map((key) => escapeCsv(row[key])).join(','))].join('\n'); }
+function escapeCsv(value) { const text = String(value ?? ''); return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text; }
+function downloadBlob(blob, filename) { const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href); }
+async function copyText(text) { try { await navigator.clipboard.writeText(text); showToast('تم النسخ'); } catch { showToast('تعذر النسخ'); } }
+function id(value) { return document.getElementById(value); }
+function escapeHTML(value) { return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
+function escapeAttr(value) { return escapeHTML(value).replace(/`/g, '&#96;'); }
