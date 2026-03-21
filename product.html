@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elite home ware | صفحة المنتج</title>
+  <meta name="description" content="صفحة منتج من Elite home ware للأدوات المنزلية والهوم وير." />
+  <meta name="robots" content="index,follow,max-image-preview:large" />
+  <meta name="theme-color" content="#0B493E" />
+  <meta property="og:locale" content="ar_AR" />
+  <meta property="og:type" content="product" />
+  <meta property="og:title" content="Elite home ware | صفحة المنتج" />
+  <meta property="og:description" content="صفحة منتج من Elite home ware للأدوات المنزلية والهوم وير." />
+  <meta property="og:url" content="https://moadad.github.io/Elite-home-/product.html" />
+  <meta property="og:site_name" content="إيليت هوم وير" />
+  <meta property="og:image" content="https://moadad.github.io/Elite-home-/assets/icon-512.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Elite home ware | صفحة المنتج" />
+  <meta name="twitter:description" content="صفحة منتج من Elite home ware للأدوات المنزلية والهوم وير." />
+  <meta name="twitter:image" content="https://moadad.github.io/Elite-home-/assets/icon-512.png" />
+  <link rel="canonical" href="https://moadad.github.io/Elite-home-/product.html" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="assets/logo-mark.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="application/ld+json" id="productStructuredData"></script>
+  <script type="module" defer src="product-page.js"></script>
+</head>
+<body>
+  <div id="productToast" class="toast"></div>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+
+  <header class="site-header">
+    <div class="shell header-bar product-header-bar">
+      <a href="./" class="icon-circle" aria-label="العودة للرئيسية"><i class="fa-solid fa-arrow-right"></i></a>
+      <div class="brand-btn product-page-brand" aria-label="إيليت هوم وير">
+        <div class="brand-mark-wrap">
+          <img id="productBrandLogo" class="brand-logo-image hidden" alt="شعار إيليت هوم وير" />
+          <div id="productBrandMark" class="brand-mark">EH</div>
+        </div>
+        <div class="brand-copy">
+          <strong id="productBrandName">Elite Home Ware</strong>
+          <span id="productBrandTagline">هوم وير فاخر</span>
+        </div>
+      </div>
+      <div class="header-tools product-header-tools">
+        <a id="productCartBtn" href="./?cart=1" class="cart-pill product-cart-pill" aria-label="السلة">
+          <i class="fa-solid fa-bag-shopping"></i>
+          <strong id="productCartCount">0</strong>
+        </a>
+        <a href="./" class="soft-pill"><i class="fa-solid fa-store"></i><span>كل المنتجات</span></a>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell product-page-shell">
+    <section class="intro-wrap product-intro-wrap">
+      <div class="intro-card product-intro-card">
+        <div class="intro-topline">
+          <span class="intro-dot"></span>
+          <span class="intro-badge">تفاصيل الموديل</span>
+        </div>
+        <div class="product-page-grid">
+          <div>
+            <div class="product-page-media-card">
+              <img id="productHeroImage" class="product-page-hero-image" src="assets/icon-512.png" alt="صورة المنتج" loading="eager" decoding="async" />
+            </div>
+            <div id="productThumbs" class="product-page-thumbs"></div>
+          </div>
+          <div class="product-page-content">
+            <div class="badges-row" id="productBadges"></div>
+            <h1 id="productTitle">جاري تحميل المنتج...</h1>
+            <p id="productLead" class="product-page-lead">يرجى الانتظار لحين تحميل بيانات الموديل.</p>
+
+            <div class="product-page-specs">
+              <div class="meta-card"><span>الموديل</span><strong id="productModel">-</strong></div>
+              <div class="meta-card"><span>المقاسات</span><strong id="productSizes">-</strong></div>
+              <div class="meta-card"><span>التصنيف</span><strong id="productCategory">-</strong></div>
+              <div class="meta-card"><span>المجموعة</span><strong id="productSeason">-</strong></div>
+            </div>
+
+            <div class="product-page-price-card">
+              <div class="price-main">
+                <small>سعر الدستة</small>
+                <strong id="productPrice">-</strong>
+                <del id="productBasePrice" class="hidden"></del>
+              </div>
+              <div class="muted" id="productPiecePrice">-</div>
+            </div>
+
+            <p id="productDescription" class="product-page-description"></p>
+
+            <div class="product-cart-card">
+              <div class="product-cart-head">
+                <div>
+                  <strong>أضف إلى السلة</strong>
+                  <span id="productCartSummaryText" class="muted">0 عنصر في السلة</span>
+                </div>
+                <a id="productOpenCartBtn" href="./?cart=1" class="soft-pill product-open-cart-btn"><i class="fa-solid fa-bag-shopping"></i><span>فتح السلة</span></a>
+              </div>
+              <div class="product-cart-controls product-cart-controls-dual">
+                <div class="field product-inline-field">
+                  <label>عدد الدست</label>
+                  <div class="product-qty-box" aria-label="عدد الدست">
+                    <button id="productQtyPlus" type="button" aria-label="زيادة عدد الدست"><i class="fa-solid fa-plus"></i></button>
+                    <input id="productQtyInput" type="number" min="0" step="1" value="1" inputmode="numeric" aria-label="عدد الدست" />
+                    <button id="productQtyMinus" type="button" aria-label="تقليل عدد الدست"><i class="fa-solid fa-minus"></i></button>
+                  </div>
+                </div>
+                <div class="field product-inline-field">
+                  <label>عدد القطع</label>
+                  <div class="product-qty-box" aria-label="عدد القطع">
+                    <button id="productPiecePlus" type="button" aria-label="زيادة عدد القطع"><i class="fa-solid fa-plus"></i></button>
+                    <input id="productPieceQtyInput" type="number" min="0" step="1" value="0" inputmode="numeric" aria-label="عدد القطع" />
+                    <button id="productPieceMinus" type="button" aria-label="تقليل عدد القطع"><i class="fa-solid fa-minus"></i></button>
+                  </div>
+                </div>
+                <button id="productAddToCartBtn" type="button" class="primary-btn product-add-to-cart-btn"><i class="fa-solid fa-cart-plus"></i><span>إضافة للسلة</span></button>
+              </div>
+            </div>
+
+            <div class="card-actions product-page-actions product-page-actions--secondary">
+              <a id="openInStoreBtn" class="primary-btn" href="./"><i class="fa-solid fa-store"></i><span>فتح داخل المتجر</span></a>
+              <a id="whatsappOrderBtn" class="ghost-btn" href="./"><i class="fa-brands fa-whatsapp"></i><span>واتساب</span></a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-row product-related-row">
+      <div class="section-heading">
+        <h2>منتجات مشابهة</h2>
+        <p>مقترحات من نفس التصنيف أو المجموعة</p>
+      </div>
+    </section>
+    <section id="relatedProducts" class="products-grid product-related-grid"></section>
+
+    <section id="productNotFound" class="empty-wrap hidden">
+      <div class="empty-card">
+        <i class="fa-regular fa-face-frown-open"></i>
+        <h3>الموديل غير موجود</h3>
+        <p>تأكد من الرابط أو افتح المتجر الرئيسي لمشاهدة جميع المنتجات المتاحة.</p>
+        <div class="card-actions" style="margin-top:16px">
+          <a href="./" class="primary-btn"><i class="fa-solid fa-store"></i><span>العودة للمتجر</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
